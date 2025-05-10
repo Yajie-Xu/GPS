@@ -48,7 +48,18 @@ An example is `./data/sample_for_VAE.txt`.
 
 Then, the module has two steps: __generative model training__ and __candidate generation__. Please run: 
 ```
-python ./VAE_Text_Generation.py --dataset reddit --training
+# python ./VAE_Text_Generation.py --dataset reddit --training
+python ./VAE_Text_Generation.py --dataset sample --training
+
+```
+
+```
+docker run -it -v "$(pwd)":/app -w /app gps-project \
+  python VAE_Text_Generation.py \
+        --dataset sample \
+        --training \
+        --epochs 10  \
+        --candidates_file ./data/sample_for_VAE.txt
 ```
 
 ### Module 2: Candidate Pruning
