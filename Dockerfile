@@ -9,7 +9,8 @@ COPY . .
 
 # Upgrade pip and install dependencies
 RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
-
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt    # NEW
+# RUN pip install --no-cache-dir -r requirements.txt    # NEW
 # Change this to match your actual entry script
 CMD ["python", "Main.py"]
