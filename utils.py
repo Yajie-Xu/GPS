@@ -4,17 +4,17 @@ import json
 import random
 import torch
 from utility.response_selection import keyword_based, vector_based
-
+import pandas as pd
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+ 
 ''' Read Data '''
 def read_candidates(fname):
     candidates = []
     for line in open(fname, 'r'):
         candidates.append(line.strip())
     return candidates
-
-
+ 
+ 
 def initialize_train_test_dataset(dataset):
     """ Create train and test dataset by random sampling.
         pct: percentage of training
@@ -27,7 +27,7 @@ def initialize_train_test_dataset(dataset):
         for y in ylist:
             for i in y.strip('[]').split(', '):
                 hate_num += 1
-
+ 
         X_text, Y_text = [], []
         line_num = 0
         for x, y, z in zip(xlist, ylist, zlist):
@@ -47,17 +47,57 @@ def initialize_train_test_dataset(dataset):
         X_text = [x['hateSpeech'].strip() for x in EN_text]
         Y_text = [[x['counterSpeech'].strip()] for x in EN_text]
         hate_num = len(X_text)
-
-    random_index = [x for x in range(hate_num)]
-    random.shuffle(random_index)
-    train_index = sorted(random_index[:int(pct*len(random_index))])
-    train_x_text = [X_text[i] for i in range(hate_num) if i in train_index]
-    train_y_text = [Y_text[i] for i in range(hate_num) if i in train_index]
-    test_x_text = [X_text[i] for i in range(hate_num) if i not in train_index]
-    test_y_text = [Y_text[i] for i in range(hate_num) if i not in train_index]
+ 
+    elif dataset == 'sample':
+        try:
+            # Load the data using pandas
+            df = pd.read_csv('/content/data/x_y_pairs.txt', sep='\t', header=None, names=['context', 'response'], on_bad_lines='skip', encoding='utf-8')
+        except Exception as e:
+            print(f"Error reading file: {e}")
+            raise
+ 
+        # Drop rows with missing data
+        df = df.dropna(subset=['context', 'response'])
+ 
+        # Convert to lists
+        X_text = df['context'].tolist()
+        Y_text = df['response'].apply(lambda x: [x]).tolist()  # Keep responses as list of one item
+ 
+        hate_num = len(X_text)
+        pct = 0.8  # Or whatever percentage of training data you want
+ 
+        import random
+        all_indices = list(range(hate_num))
+        train_indices = sorted(random.sample(all_indices, int(pct * hate_num)))
+ 
+        train_x_text = [X_text[i] for i in train_indices]
+        train_y_text = [Y_text[i] for i in train_indices]
+ 
+        test_x_text = X_text  # Full dataset
+        test_y_text = Y_text
+ 
+        return train_x_text, train_y_text, test_x_text, test_y_text
+ 
+ 
+ 
+    pct = 0.3  # percentage of data to use for training
+ 
+    # Random subset for training
+    import random
+    all_indices = list(range(hate_num))
+    train_indices = sorted(random.sample(all_indices, int(pct * hate_num)))
+ 
+    # Build training subset
+    train_x_text = [X_text[i] for i in train_indices]
+    train_y_text = [Y_text[i] for i in train_indices]
+ 
+    # Test set is the full dataset, in original order
+    test_x_text = X_text
+    test_y_text = Y_text
+ 
     return train_x_text, train_y_text, test_x_text, test_y_text
-
-
+ 
+ 
 def read_EMNLP2019(dataset_fname):
     xlist = []
     ylist = []
@@ -74,9 +114,9 @@ def read_EMNLP2019(dataset_fname):
             ylist.append(y)
             zlist.append(z)
     return xlist, ylist, zlist
-
-
-
+ 
+ 
+ 
 ''' Data processing '''
 def convert_to_contexts_responses(train_x_text, train_y_text):
     contexts_train = []
@@ -85,9 +125,9 @@ def convert_to_contexts_responses(train_x_text, train_y_text):
         contexts_train.append(i[0].strip())
         responses_train.append(i[1][random.randint(0, len(i[1])-1)].strip())
     return contexts_train, responses_train
-
-
-
+ 
+ 
+ 
 ''' Model '''
 def to_method_object(method_name):
     method_name = method_name.upper()
@@ -120,13 +160,13 @@ def to_method_object(method_name):
     elif method_name == 'USE_QA_MAP':
         return vector_based.VectorMappingMethod(encoder=vector_based.USEDualEncoder("https://tfhub.dev/google/universal-sentence-encoder-multilingual-qa/1"))
     elif method_name == 'CONVERT_SIM':
-        return vector_based.VectorSimilarityMethod(encoder=vector_based.ConveRTEncoder("http://models.poly-ai.com/convert/v1/model.tar.gz"))
+        return vector_based.VectorSimilarityMethod(encoder=vector_based.ConveRTEncoder("https://www.kaggle.com/models/tensorflow/bert/TensorFlow2/bert-en-uncased-l-10-h-128-a-2/2"))
     elif method_name == 'CONVERT_MAP':
-        return vector_based.VectorMappingMethod(encoder=vector_based.ConveRTEncoder("http://models.poly-ai.com/convert/v1/model.tar.gz"))
+        return vector_based.VectorMappingMethod(encoder=vector_based.ConveRTEncoder("https://www.kaggle.com/models/tensorflow/bert/TensorFlow2/bert-en-uncased-l-10-h-128-a-2/2"))
     raise ValueError("Unknown method {}".format(method_name))
-
-
-
+ 
+ 
+ 
 ''' Useful functions '''
 def split_response_func(strresponse):
     result = ast.literal_eval(strresponse)
